@@ -16,7 +16,7 @@ from catboost import CatBoostRegressor, CatBoostClassifier
 from sklearn.decomposition import (
     PCA, TruncatedSVD, KernelPCA, FastICA, FactorAnalysis, NMF, DictionaryLearning
 )
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA, QuadraticDiscriminantAnalysis
 from sklearn.manifold import TSNE
 from umap import UMAP
 
@@ -87,7 +87,7 @@ def select_linear_regression_model(model_name, alpha=1.0, C=1.0, l1_ratio=0.5, d
     else:
         raise ValueError(f"Unknown model: {model_name}")
 
-    return model, model_name, descriptions.get(model_name, "Description not found.")
+    return model, model_name +": "+ descriptions.get(model_name, "Description not found.")
 
 
 def select_nonlinear_regression_model(model_name, degree=3, kernel="rbf", max_depth=5, neighbors=5, n_estimators=100):
@@ -215,7 +215,7 @@ def select_nonlinear_regression_model(model_name, degree=3, kernel="rbf", max_de
     else:
         raise ValueError(f"Unknown model: {model_name}")
 
-    return model, model_name, descriptions.get(model_name, "Description not found.")
+    return model, model_name +": "+ descriptions.get(model_name, "Description not found.")
 
 
 def select_classification_model(model_name, C=1.0, l1_ratio=0.5, dual=True, weights="uniform", algorithm="auto",
@@ -335,7 +335,7 @@ def select_classification_model(model_name, C=1.0, l1_ratio=0.5, dual=True, weig
     else:
         raise ValueError(f"Unknown model: {model_name}")
 
-    return model, model_name, descriptions.get(model_name, "Description not found.")
+    return model, model_name +": "+ descriptions.get(model_name, "Description not found.")
 
 
 def select_clustering_model(model_name, n_clusters=3, eps=0.5, min_samples=5, linkage="ward", bandwidth=None, damping=0.5):
@@ -410,7 +410,7 @@ def select_clustering_model(model_name, n_clusters=3, eps=0.5, min_samples=5, li
     else:
         raise ValueError(f"Unknown clustering model: {model_name}")
 
-    return model, model_name, descriptions.get(model_name, "Description not found.")
+    return model, model_name +": "+ descriptions.get(model_name, "Description not found.")
 
 
 
@@ -474,6 +474,8 @@ def select_dimensionality_reduction_model(model_name, n_components=2, kernel="li
         model = TruncatedSVD(n_components=n_components, random_state=42)
     elif model_name == 'LDA':
         model = LDA(n_components=n_components)
+    elif model_name == "QDA":
+        model = QuadraticDiscriminantAnalysis()
     elif model_name == 'KernelPCA':
         model = KernelPCA(n_components=n_components, kernel=kernel, gamma=gamma, random_state=42)
     elif model_name == 'TSNE':
@@ -493,4 +495,114 @@ def select_dimensionality_reduction_model(model_name, n_components=2, kernel="li
     else:
         raise ValueError(f"Unknown dimensionality reduction model: {model_name}")
 
-    return model, model_name, descriptions.get(model_name, "Description not found.")
+    return model, model_name +": "+ descriptions.get(model_name, "Description not found.")
+
+def select_model(
+            model_type: str,
+            model_name: str,
+            # Lineer model argümanları
+            alpha: float = 1.0,
+            C: float = 1.0,
+            l1_ratio: float = 0.5,
+            dual: bool = True,
+            fit_intercept: bool = True,
+            max_iter: int = 100,
+            selection: str = "random",
+            # Non-linear / Regresyon argümanları
+            degree: int = 3,
+            kernel: str = "rbf",
+            max_depth: int = 5,
+            neighbors: int = 5,
+            n_estimators: int = 100,
+            # Sınıflandırma argümanları
+            weights: str = "uniform",
+            algorithm: str = "auto",
+            criterion: str = "entropy",
+            n_neighbors: int = 10,
+            max_features=4,
+            priors=None,
+            loss: str = "log_loss",
+            learning_rate: float = 0.05,
+            # Kümeleme argümanları
+            n_clusters: int = 3,
+            eps: float = 0.5,
+            min_samples: int = 5,
+            linkage: str = "ward",
+            bandwidth=None,
+            damping: float = 0.5,
+            # Boyut indirgeme argümanları
+            n_components: int = 2,
+            gamma=None,
+            perplexity: float = 30.0,
+            init: str = "pca"
+    ):
+        model_type = model_type.lower()
+
+        if model_type in ["linear_regression", "linear", "regression_linear"]:
+            return select_linear_regression_model(
+                model_name=model_name,
+                alpha=alpha,
+                C=C,
+                l1_ratio=l1_ratio,
+                dual=dual,
+                fit_intercept=fit_intercept,
+                max_iter=max_iter,
+                selection=selection
+            )
+
+        elif model_type in ["nonlinear_regression", "nonlinear", "regression"]:
+            return select_nonlinear_regression_model(
+                model_name=model_name,
+                degree=degree,
+                kernel=kernel,
+                max_depth=max_depth,
+                neighbors=neighbors,
+                n_estimators=n_estimators
+            )
+
+        elif model_type in ["classification", "clf"]:
+            return select_classification_model(
+                model_name=model_name,
+                C=C,
+                l1_ratio=l1_ratio,
+                dual=dual,
+                weights=weights,
+                algorithm=algorithm,
+                fit_intercept=fit_intercept,
+                criterion=criterion,
+                n_neighbors=n_neighbors,
+                max_depth=max_depth,
+                max_features=max_features,
+                priors=priors,
+                loss=loss,
+                learning_rate=learning_rate,
+                max_iter=max_iter,
+                n_estimators=n_estimators,
+                degree=degree,
+                kernel=kernel
+            )
+
+        elif model_type in ["clustering", "cluster"]:
+            return select_clustering_model(
+                model_name=model_name,
+                n_clusters=n_clusters,
+                eps=eps,
+                min_samples=min_samples,
+                linkage=linkage,
+                bandwidth=bandwidth,
+                damping=damping
+            )
+
+        elif model_type in ["dimensionality_reduction", "dim_red", "reduction"]:
+            return select_dimensionality_reduction_model(
+                model_name=model_name,
+                n_components=n_components,
+                kernel=kernel,
+                gamma=gamma,
+                perplexity=perplexity,
+                n_neighbors=n_neighbors,
+                init=init
+            )
+
+        else:
+            raise ValueError(f"Bilinmeyen model_type: {model_type}")

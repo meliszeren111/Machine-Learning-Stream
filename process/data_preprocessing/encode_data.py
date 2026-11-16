@@ -13,8 +13,9 @@ def encode_nonordinal_data(df):
 
 def encode_ordinal_data(df):
     label_encoder = LabelEncoder()
-    encoded_df = label_encoder.fit_transform(df)
-    return encoded_df
+    for col in df.columns:
+        df[col] = label_encoder.fit_transform(df[col].astype(str))
+    return df
 
 
 
