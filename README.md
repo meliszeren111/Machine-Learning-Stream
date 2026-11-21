@@ -1,7 +1,7 @@
 # # Machine Learning Stream 
 
 is a modular Python toolkit designed to streamline machine learning workflows. It provides centralized selection functions for a wide range of algorithms, spanning regression, classification, clustering, dimensionality reduction, and feature transformation. Each selection function automatically instantiates the chosen model with customizable hyperparameters while returning a detailed technical description of its underlying mechanics.
-Below is the complete list of all 56 algorithms and preprocessing tools implemented in the toolkit, categorized by their primary machine learning tasks:
+Below is the complete list of all 63 algorithms and preprocessing tools implemented in the toolkit, categorized by their primary machine learning tasks:
 
 # 1. Linear and Generalized Models
 LinearRegression
