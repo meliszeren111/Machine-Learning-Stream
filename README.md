@@ -67,7 +67,8 @@ Below is the complete list of all 63 algorithms and preprocessing tools implemen
 - LinearDiscriminantAnalysis (LDA)
 - TSNE (t-Distributed Stochastic Neighbor Embedding)
 - UMAP (Uniform Manifold Approximation and Projection)
-- 7. Feature Transformation and Preprocessing
+  
+# 7. Feature Transformation and Preprocessing
 - PolynomialFeatures
 - SplineTransformer
 - RBFSampler (Radial Basis Function Sampler)
