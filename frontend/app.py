@@ -2,14 +2,14 @@ import streamlit as st
 import requests
 import pandas as pd
 
+from config import API_URL
+
 st.set_page_config(
     page_title="AutoML Studio",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-import os
-API_URL = os.getenv("API_URL", "http://127.0.0.1:8501")
 
 st.markdown("""
     <style>
