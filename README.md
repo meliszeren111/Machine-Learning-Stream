@@ -12,62 +12,62 @@ Below is the complete list of all 63 algorithms and preprocessing tools implemen
 - RidgeCV
 
 # 2. Ensemble and Boosting Models
-RandomForestRegressor
-RandomForestClassifier
-GradientBoostingRegressor
-GradientBoostingClassifier
-HistGradientBoostingRegressor
-HistGradientBoostingClassifier
-AdaBoostRegressor
-AdaBoostClassifier
-BaggingRegressor
-BaggingClassifier
-ExtraTreesRegressor
-ExtraTreesClassifier
-XGBRegressor
-XGBClassifier
-LGBMRegressor
-LGBMClassifier
-CatBoostRegressor
-CatBoostClassifier
+- RandomForestRegressor
+- RandomForestClassifier
+- GradientBoostingRegressor
+- GradientBoostingClassifier
+- HistGradientBoostingRegressor
+- HistGradientBoostingClassifier
+- AdaBoostRegressor
+- AdaBoostClassifier
+- BaggingRegressor
+- BaggingClassifier
+- ExtraTreesRegressor
+- ExtraTreesClassifier
+- XGBRegressor
+- XGBClassifier
+- LGBMRegressor
+- LGBMClassifier
+- CatBoostRegressor
+- CatBoostClassifier
 
 # 3. Support Vector, Neighbors, and Neural Networks
-SVR (Support Vector Regression)
-SVC (Support Vector Classification)
-KNeighborsRegressor
-KNeighborsClassifier
-GaussianProcessRegressor
-MLPRegressor (Multi-Layer Perceptron)
+- SVR (Support Vector Regression)
+- SVC (Support Vector Classification)
+- KNeighborsRegressor
+- KNeighborsClassifier
+- GaussianProcessRegressor
+- MLPRegressor (Multi-Layer Perceptron)
 
 # 4. Trees and Probabilistic Models
-DecisionTreeRegressor
-DecisionTreeClassifier
-GaussianNB (Naive Bayes)
+- DecisionTreeRegressor
+- DecisionTreeClassifier
+- GaussianNB (Naive Bayes)
 
 # 5. Clustering and Unsupervised Models
-KMeans
-DBSCAN
-HDBSCAN
-AgglomerativeClustering
-SpectralClustering
-MeanShift
-AffinityPropagation
-OPTICS
-Birch
-GaussianMixture (GMM)
+- KMeans
+- DBSCAN
+- HDBSCAN
+- AgglomerativeClustering
+- SpectralClustering
+- MeanShift
+- AffinityPropagation
+- OPTICS
+- Birch
+- GaussianMixture (GMM)
 
 # 6. Dimensionality Reduction and Manifold Learning
-PCA (Principal Component Analysis)
-TruncatedSVD
-KernelPCA
-FastICA
-FactorAnalysis
-NMF (Non-Negative Matrix Factorization)
-DictionaryLearning
-LinearDiscriminantAnalysis (LDA)
-TSNE (t-Distributed Stochastic Neighbor Embedding)
-UMAP (Uniform Manifold Approximation and Projection)
-7. Feature Transformation and Preprocessing
-PolynomialFeatures
-SplineTransformer
-RBFSampler (Radial Basis Function Sampler)
+- PCA (Principal Component Analysis)
+- TruncatedSVD
+- KernelPCA
+- FastICA
+- FactorAnalysis
+- NMF (Non-Negative Matrix Factorization)
+- DictionaryLearning
+- LinearDiscriminantAnalysis (LDA)
+- TSNE (t-Distributed Stochastic Neighbor Embedding)
+- UMAP (Uniform Manifold Approximation and Projection)
+- 7. Feature Transformation and Preprocessing
+- PolynomialFeatures
+- SplineTransformer
+- RBFSampler (Radial Basis Function Sampler)
