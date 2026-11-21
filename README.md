@@ -4,12 +4,12 @@ is a modular Python toolkit designed to streamline machine learning workflows. I
 Below is the complete list of all 63 algorithms and preprocessing tools implemented in the toolkit, categorized by their primary machine learning tasks:
 
 # 1. Linear and Generalized Models
-LinearRegression
-LogisticRegression
-Lasso
-Ridge
-LassoCV
-RidgeCV
+- LinearRegression
+- LogisticRegression
+- Lasso
+- Ridge
+- LassoCV
+- RidgeCV
 
 # 2. Ensemble and Boosting Models
 RandomForestRegressor
