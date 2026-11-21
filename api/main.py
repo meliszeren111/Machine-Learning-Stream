@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, APIRouter
 from pydantic import BaseModel
 from process.data_loading.load_csv import *
@@ -225,7 +227,6 @@ class ModelNameEnum(str, Enum):
     hdbscan = "HDBSCAN"
     gaussian_mixture = "GaussianMixture"
 
-
 @one_click_router.post("/")
 async def one_click(
         file: UploadFile = File(...),
@@ -341,4 +342,5 @@ async def one_click(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("api.main:app", host="0.0.0.0", port=port, reload=False)
