@@ -21,32 +21,85 @@ st.markdown("""
         height: 3em;
         font-weight: bold;
     }
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    .status-ok {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+    .status-err {
+        background-color: #f8d7da;
+        color: #842029;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 MODEL_CATALOG = {
-    "regression": [
+    "Regression": [
         "RandomForestRegressor", "GradientBoostingRegressor", "HistGradientBoostingRegressor",
         "AdaBoostRegressor", "BaggingRegressor", "ExtraTreesRegressor", "GaussianProcessRegressor",
         "LinearRegression", "Lasso", "Ridge", "LassoCV", "RidgeCV", "KNeighborsRegressor",
         "MLPRegressor", "SVR", "DecisionTreeRegressor", "XGBRegressor", "LGBMRegressor",
         "CatBoostRegressor", "PolynomialRegression", "SupportVectorRegressor", "MultiLayerPerceptron"
     ],
-    "classification": [
+    "Classification": [
         "RandomForestClassifier", "GradientBoostingClassifier", "HistGradientBoostingClassifier",
         "AdaBoostClassifier", "BaggingClassifier", "ExtraTreesClassifier", "LogisticRegression",
         "GaussianNB", "KNeighborsClassifier", "SVC", "DecisionTreeClassifier", "XGBClassifier",
         "LGBMClassifier", "CatBoostClassifier", "KNN", "NaiveBayes", "SupportVectorClassifier"
     ],
-    "clustering": [
+    "Clustering": [
         "KMeans", "DBSCAN", "AgglomerativeClustering", "SpectralClustering",
         "MeanShift", "AffinityPropagation", "OPTICS", "Birch", "HDBSCAN", "GaussianMixture"
     ],
-    "dimensionality_reduction": [
+    "Dimensionality Reduction": [
         "PCA", "TruncatedSVD", "KernelPCA", "FastICA", "FactorAnalysis",
         "NMF", "DictionaryLearning", "LDA", "QDA", "TSNE", "UMAP"
     ]
 }
+
+
+def parse_optional_float_or_none(raw_value: str):
+    cleaned = raw_value.strip()
+    if cleaned == "" or cleaned.lower() in {"none", "null"}:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return cleaned
+
+
+def parse_max_features(raw_value: str):
+    cleaned = raw_value.strip()
+    if cleaned == "" or cleaned.lower() in {"none", "null"}:
+        return None
+    if cleaned.lower() in {"sqrt", "log2"}:
+        return cleaned.lower()
+    try:
+        if "." in cleaned:
+            return float(cleaned)
+        return int(cleaned)
+    except ValueError:
+        return cleaned
+
+
+def parse_priors(raw_value: str):
+    cleaned = raw_value.strip()
+    if cleaned == "" or cleaned.lower() in {"none", "null"}:
+        return None
+    parts = [p.strip() for p in cleaned.split(",") if p.strip()]
+    parsed = []
+    for p in parts:
+        try:
+            parsed.append(float(p))
+        except ValueError:
+            parsed.append(p)
+    return parsed if parsed else None
+
 
 col_title, col_status = st.columns([4, 1], vertical_alignment="center")
 with col_title:
@@ -69,54 +122,65 @@ with st.sidebar:
     st.header("Pipeline Ayarlari")
 
     with st.expander("1. Data Pre-processing", expanded=True):
-        data_type = st.selectbox("Data Type", ["ordinal", "nonordinal", "image"])
+        data_type = st.selectbox("Data Type", ["ordinal", "nonordinal", "image"], index=0)
         scale = st.checkbox("Scale", value=True)
         normalize = st.checkbox("Normalization (Normalize)", value=False)
         encode = st.checkbox("Encode", value=True)
 
-    with st.expander("2. Train-Test Split", expanded=False):
-        test_size = st.slider("Test Size", 0.1, 0.5, 0.2, 0.05)
-        train_size = round(1.0 - test_size, 2)
+    with st.expander("2. Train-Test & Split Settings", expanded=False):
+        split_by = st.selectbox("Split By", ["train", "test", "left", "right"], index=0)
+        test_size = st.slider("Test Size", 0.0, 0.9, 0.2, 0.05)
+        train_size = st.slider("Train Size", 0.0, 1.0, 0.8, 0.05)
+        left_size = st.slider("Left Size", 0.0, 1.0, 0.8, 0.05)
+        right_size = st.slider("Right Size", 0.0, 1.0, 0.2, 0.05)
         shuffle = st.checkbox("Shuffle", value=True)
         random_state = st.number_input("Random State", value=42, step=1)
 
     with st.expander("3. Model Selection", expanded=True):
-        model_type = st.selectbox("Problem Type", list(MODEL_CATALOG.keys()))
-        model_name = st.selectbox("Algorithm", MODEL_CATALOG[model_type])
+        model_type = st.selectbox("Problem Type", list(MODEL_CATALOG.keys()), index=0)
+        model_name = st.selectbox("Algorithm", MODEL_CATALOG[model_type], index=0)
 
-    with st.expander("4. Hiperparameters", expanded=True):
-        params = {}
+    with st.expander("4. General & Linear / Tree / Neighbor Hyperparameters", expanded=True):
+        alpha = st.number_input("Alpha", value=1.0, step=0.1, format="%.4f")
+        C = st.number_input("C", value=1.0, step=0.1, format="%.4f")
+        l1_ratio = st.slider("L1 Ratio", 0.0, 1.0, 0.5, 0.05)
+        dual = st.checkbox("Dual", value=True)
+        fit_intercept = st.checkbox("Fit Intercept", value=True)
+        max_iter = st.number_input("Max Iter", min_value=1, value=100, step=10)
+        selection = st.selectbox("Selection", ["random", "cyclic"], index=0)
+        degree = st.number_input("Degree", min_value=1, value=3, step=1)
+        kernel = st.selectbox("Kernel", ["rbf", "linear", "poly", "sigmoid", "precomputed"], index=0)
+        max_depth = st.number_input("Max Depth", min_value=1, value=5, step=1)
+        neighbors = st.number_input("Neighbors", min_value=1, value=5, step=1)
+        n_estimators = st.number_input("N Estimators", min_value=1, value=100, step=10)
+        weights = st.selectbox("Weights", ["uniform", "distance"], index=0)
+        algorithm = st.selectbox("Algorithm (Nearest / Tree)", ["auto", "ball_tree", "kd_tree", "brute"], index=0)
+        criterion = st.selectbox(
+            "Criterion",
+            ["entropy", "gini", "log_loss", "squared_error", "friedman_mse", "absolute_error", "poisson"],
+            index=0
+        )
+        n_neighbors = st.number_input("N Neighbors", min_value=1, value=10, step=1)
+        max_features_raw = st.text_input("Max Features (int, float, 'sqrt', 'log2', or None)", value="4")
+        priors_raw = st.text_input("Priors (comma-separated floats or None)", value="")
+        loss = st.selectbox(
+            "Loss",
+            ["log_loss", "squared_error", "absolute_error", "huber", "quantile", "hinge", "modified_huber", "squared_hinge", "perceptron"],
+            index=0
+        )
+        learning_rate = st.number_input("Learning Rate", min_value=0.0001, value=0.05, step=0.01, format="%.4f")
 
-        if model_type in ["Regression", "Classification"]:
-            if any(k in model_name for k in ["Forest", "Boosting", "Trees", "XGB", "LGBM", "CatBoost", "Bagging"]):
-                params["n_estimators"] = st.number_input("Number of Trees (n_estimators)", 10, 1000, 100, 10)
-                params["max_depth"] = st.slider("Maximum Depth", 1, 50, 5)
-
-            if any(k in model_name for k in ["Boosting", "XGB", "LGBM", "CatBoost", "MLP"]):
-                params["learning_rate"] = st.number_input("Learning Rate", 0.001, 1.0, 0.05, format="%.3f")
-
-            if any(k in model_name for k in ["Lasso", "Ridge"]):
-                params["alpha"] = st.number_input("Alpha", 0.01, 100.0, 1.0)
-
-            if any(k in model_name for k in ["SV", "Logistic"]):
-                params["C"] = st.number_input("C Value", 0.01, 100.0, 1.0)
-                params["kernel"] = st.selectbox("Kernel", ["rbf", "linear", "poly", "sigmoid"])
-
-            if "Neighbors" in model_name or "KNN" in model_name:
-                params["n_neighbors"] = st.slider("Number of Neightbors (n_neighbors)", 1, 50, 5)
-                params["weights"] = st.selectbox("Weights", ["uniform", "distance"])
-
-        elif model_type == "clustering":
-            if model_name in ["KMeans", "AgglomerativeClustering", "SpectralClustering", "Birch", "GaussianMixture"]:
-                params["n_clusters"] = st.slider("Number of Clusters (n_clusters)", 2, 20, 3)
-            if model_name in ["DBSCAN", "OPTICS"]:
-                params["eps"] = st.number_input("Epsilon (eps)", 0.1, 10.0, 0.5)
-                params["min_samples"] = st.slider("Min Samples", 1, 50, 5)
-
-        elif model_type == "dimensionality_reduction":
-            params["n_components"] = st.slider("Number of Components (n_components)", 2, 50, 2)
-            if model_name == "TSNE":
-                params["perplexity"] = st.slider("Perplexity", 5.0, 100.0, 30.0)
+    with st.expander("5. Clustering & Dimensionality Reduction Hyperparameters", expanded=False):
+        n_clusters = st.number_input("N Clusters", min_value=1, value=3, step=1)
+        eps = st.number_input("Eps", min_value=0.01, value=0.5, step=0.05, format="%.4f")
+        min_samples = st.number_input("Min Samples", min_value=1, value=5, step=1)
+        linkage = st.selectbox("Linkage", ["ward", "complete", "average", "single"], index=0)
+        bandwidth_raw = st.text_input("Bandwidth (float or None)", value="")
+        damping = st.slider("Damping", 0.5, 0.99, 0.5, 0.01)
+        n_components = st.number_input("N Components", min_value=1, value=2, step=1)
+        gamma_raw = st.text_input("Gamma (float, 'scale', 'auto', or None)", value="")
+        perplexity = st.number_input("Perplexity", min_value=1.0, value=30.0, step=1.0, format="%.2f")
+        init = st.selectbox("Init", ["pca", "random", "k-means++"], index=0)
 
 with st.container(border=True):
     st.subheader("1. Loading Dataset")
@@ -151,47 +215,87 @@ with st.container(border=True):
 
         st.dataframe(pd.DataFrame(pdata["preview"]), use_container_width=True)
 
+        default_idx = pdata["columns"].index("target") if "target" in pdata["columns"] else len(pdata["columns"]) - 1
         col_target, col_btn = st.columns([3, 1], vertical_alignment="bottom")
         with col_target:
             ylabel = st.selectbox(
-                "Target Column",
+                "Target Column (ylabel)",
                 options=pdata["columns"],
-                index=len(pdata["columns"]) - 1
+                index=default_idx
             )
         with col_btn:
             run_button = st.button("Start Training", type="primary")
 
         if run_button:
-            with st.spinner(f"{model_name} model is being trained..."):
-                query_params = {
-                    "scale": scale,
-                    "normalize": normalize,
-                    "encode": encode,
-                    "data_type": data_type,
-                    "ylabel": ylabel,
-                    "test_size": test_size,
-                    "train_size": train_size,
-                    "shuffle": shuffle,
-                    "random_state": random_state,
-                    "model_type": model_type,
-                    "model_name": model_name,
-                    **params
-                }
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+            if uploaded_file is None:
+                st.warning("Please upload a file before starting training.")
+            else:
+                with st.spinner(f"{model_name} model is being trained..."):
+                    query_params = {
+                        "scale": scale,
+                        "normalize": normalize,
+                        "encode": encode,
+                        "data_type": data_type,
+                        "ylabel": ylabel,
+                        "test_size": test_size,
+                        "train_size": train_size,
+                        "split_by": split_by,
+                        "left_size": left_size,
+                        "right_size": right_size,
+                        "shuffle": shuffle,
+                        "random_state": int(random_state),
+                        "model_type": str(model_type).strip().lower(),
+                        "model_name": model_name,
+                        "alpha": float(alpha),
+                        "C": float(C),
+                        "l1_ratio": float(l1_ratio),
+                        "dual": dual,
+                        "fit_intercept": fit_intercept,
+                        "max_iter": int(max_iter),
+                        "selection": selection,
+                        "degree": int(degree),
+                        "kernel": kernel,
+                        "max_depth": int(max_depth),
+                        "neighbors": int(neighbors),
+                        "n_estimators": int(n_estimators),
+                        "weights": weights,
+                        "algorithm": algorithm,
+                        "criterion": criterion,
+                        "n_neighbors": int(n_neighbors),
+                        "max_features": parse_max_features(max_features_raw),
+                        "priors": parse_priors(priors_raw),
+                        "loss": loss,
+                        "learning_rate": float(learning_rate),
+                        "n_clusters": int(n_clusters),
+                        "eps": float(eps),
+                        "min_samples": int(min_samples),
+                        "linkage": linkage,
+                        "bandwidth": parse_optional_float_or_none(bandwidth_raw),
+                        "damping": float(damping),
+                        "n_components": int(n_components),
+                        "gamma": parse_optional_float_or_none(gamma_raw),
+                        "perplexity": float(perplexity),
+                        "init": init,
+                    }
 
-                try:
-                    response = requests.post(
-                        f"{API_URL}/one-click/",
-                        params=query_params,
-                        files=files
-                    )
-                    if response.status_code == 200:
-                        st.session_state.last_result = response.json()
-                        st.session_state.last_params = query_params
-                    else:
-                        st.error(f"API Error ({response.status_code}): {response.text}")
-                except Exception as e:
-                    st.error(f"Request Error: {str(e)}")
+                    # None değerlerini query parametrelerinden temizle (FastAPI varsayılan None değerini kullanır)
+                    cleaned_query_params = {k: v for k, v in query_params.items() if v is not None}
+
+                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+
+                    try:
+                        response = requests.post(
+                            f"{API_URL}/one-click/",
+                            params=cleaned_query_params,
+                            files=files
+                        )
+                        if response.status_code == 200:
+                            st.session_state.last_result = response.json()
+                            st.session_state.last_params = query_params
+                        else:
+                            st.error(f"API Error ({response.status_code}): {response.text}")
+                    except Exception as e:
+                        st.error(f"Request Error: {str(e)}")
 
 if "last_result" in st.session_state:
     result = st.session_state.last_result
