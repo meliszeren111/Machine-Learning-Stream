@@ -247,78 +247,93 @@ with st.container(border=True):
             ylabel = st.text_input("Target Column (ylabel)", value="target")
 
     with col_btn:
-        run_button = st.button("Start Training", type="primary")
+        is_training = st.session_state.get("is_training", False)
+        run_button = st.button(
+            "Training..." if is_training else "Start Training",
+            type="primary",
+            disabled=is_training,
+            key="start_training_one_click_btn"
+        )
 
-    if run_button:
+    # --- START TRAINING (ONE-CLICK) ---
+    if run_button and not st.session_state.get("is_training", False):
         if uploaded_file is None:
             st.warning("Please upload a file before starting training.")
         else:
-            with st.spinner(f"{model_name} model is being trained..."):
-                query_params = {
-                    "scale": scale,
-                    "normalize": normalize,
-                    "encode": encode,
-                    "data_type": data_type,
-                    "ylabel": ylabel,
-                    "test_size": test_size,
-                    "train_size": train_size,
-                    "split_by": split_by,
-                    "left_size": left_size,
-                    "right_size": right_size,
-                    "shuffle": shuffle,
-                    "random_state": int(random_state),
-                    "model_type": str(model_type).strip().lower(),
-                    "model_name": model_name,
-                    "alpha": float(alpha),
-                    "C": float(C),
-                    "l1_ratio": float(l1_ratio),
-                    "dual": dual,
-                    "fit_intercept": fit_intercept,
-                    "max_iter": int(max_iter),
-                    "selection": selection,
-                    "degree": int(degree),
-                    "kernel": kernel,
-                    "max_depth": int(max_depth),
-                    "neighbors": int(neighbors),
-                    "n_estimators": int(n_estimators),
-                    "weights": weights,
-                    "algorithm": algorithm,
-                    "criterion": criterion,
-                    "n_neighbors": int(n_neighbors),
-                    "max_features": parse_max_features(max_features_raw),
-                    "priors": parse_priors(priors_raw),
-                    "loss": loss,
-                    "learning_rate": float(learning_rate),
-                    "n_clusters": int(n_clusters),
-                    "eps": float(eps),
-                    "min_samples": int(min_samples),
-                    "linkage": linkage,
-                    "bandwidth": parse_optional_float_or_none(bandwidth_raw),
-                    "damping": float(damping),
-                    "n_components": int(n_components),
-                    "gamma": parse_optional_float_or_none(gamma_raw),
-                    "perplexity": float(perplexity),
-                    "init": init,
-                }
+            st.session_state.is_training = True
+            st.rerun()
 
-                cleaned_query_params = {k: v for k, v in query_params.items() if v is not None}
+    if st.session_state.get("is_training", False):
+        with st.spinner(f"{model_name} model is being trained..."):
+            query_params = {
+                "scale": scale,
+                "normalize": normalize,
+                "encode": encode,
+                "data_type": data_type,
+                "ylabel": ylabel,
+                "test_size": test_size,
+                "train_size": train_size,
+                "split_by": split_by,
+                "left_size": left_size,
+                "right_size": right_size,
+                "shuffle": shuffle,
+                "random_state": int(random_state),
+                "model_type": str(model_type).strip().lower(),
+                "model_name": model_name,
+                "alpha": float(alpha),
+                "C": float(C),
+                "l1_ratio": float(l1_ratio),
+                "dual": dual,
+                "fit_intercept": fit_intercept,
+                "max_iter": int(max_iter),
+                "selection": selection,
+                "degree": int(degree),
+                "kernel": kernel,
+                "max_depth": int(max_depth),
+                "neighbors": int(neighbors),
+                "n_estimators": int(n_estimators),
+                "weights": weights,
+                "algorithm": algorithm,
+                "criterion": criterion,
+                "n_neighbors": int(n_neighbors),
+                "max_features": parse_max_features(max_features_raw),
+                "priors": parse_priors(priors_raw),
+                "loss": loss,
+                "learning_rate": float(learning_rate),
+                "n_clusters": int(n_clusters),
+                "eps": float(eps),
+                "min_samples": int(min_samples),
+                "linkage": linkage,
+                "bandwidth": parse_optional_float_or_none(bandwidth_raw),
+                "damping": float(damping),
+                "n_components": int(n_components),
+                "gamma": parse_optional_float_or_none(gamma_raw),
+                "perplexity": float(perplexity),
+                "init": init,
+            }
 
-                uploaded_file.seek(0)
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+            cleaned_query_params = {k: v for k, v in query_params.items() if v is not None}
 
-                try:
-                    response = requests.post(
-                        f"{API_URL}/one-click/",
-                        params=cleaned_query_params,
-                        files=files
-                    )
-                    if response.status_code == 200:
-                        st.session_state.last_result = response.json()
-                        st.session_state.last_params = query_params
-                    else:
-                        st.error(f"API Error ({response.status_code}): {response.text}")
-                except Exception as e:
-                    st.error(f"Request Error: {str(e)}")
+            uploaded_file.seek(0)
+            files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+
+            try:
+                response = requests.post(
+                    f"{API_URL}/one-click/",
+                    params=cleaned_query_params,
+                    files=files
+                )
+                if response.status_code == 200:
+                    st.session_state.last_result = response.json()
+                    st.session_state.last_params = query_params
+                else:
+                    st.error(f"API Error ({response.status_code}): {response.text}")
+            except Exception as e:
+                st.error(f"Request Error: {str(e)}")
+            finally:
+                # İstek tamamlandığında (başarılı veya hatalı) butonu tekrar aktif et
+                st.session_state.is_training = False
+                st.rerun()
 
 
 if "last_result" in st.session_state:
