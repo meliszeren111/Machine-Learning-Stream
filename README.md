@@ -16,18 +16,18 @@ Below is the complete list of all 56 algorithms and preprocessing tools implemen
 - RandomForestClassifier
 - GradientBoostingRegressor
 - GradientBoostingClassifier
-- HistGradientBoostingRegressor
-- HistGradientBoostingClassifier
+- HistGradientBoostingRegressor (Histogram-Based Gradient Boosting Regressor)
+- HistGradientBoostingClassifier (Histogram-Based Gradient Boosting Classifier)
 - AdaBoostRegressor
 - AdaBoostClassifier
 - BaggingRegressor
 - BaggingClassifier
 - ExtraTreesRegressor
 - ExtraTreesClassifier
-- XGBRegressor
-- XGBClassifier
-- LGBMRegressor
-- LGBMClassifier
+- XGBRegressor (eXtreme Gradient Boosting Regressor)
+- XGBClassifier (eXtreme Gradient Boosting Classifier)
+- LGBMRegressor (Light Gradient Boosting Machine Regressor)
+- LGBMClassifier (Light Gradient Boosting Machine Classifier)
 - CatBoostRegressor
 - CatBoostClassifier
 
@@ -46,14 +46,14 @@ Below is the complete list of all 56 algorithms and preprocessing tools implemen
 
 # 5. Clustering and Unsupervised Models
 - KMeans
-- DBSCAN
-- HDBSCAN
+- DBSCAN (Density-Based Spatial Clustering of Applications with Noise)
+- HDBSCAN (Hierarchical Density-Based Spatial Clustering of Applications with Noise)
 - AgglomerativeClustering
 - SpectralClustering
 - MeanShift
 - AffinityPropagation
-- OPTICS
-- Birch
+- OPTICS (Ordering Points To Identify the Clustering Structure)
+- Birch (Balanced Iterative Reducing and Clustering using Hierarchies)
 - GaussianMixture (GMM)
 
 # 6. Dimensionality Reduction and Manifold Learning
