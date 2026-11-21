@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 
 st.set_page_config(
-    page_title="AutoML Implementation Studio",
+    page_title="AutoML Studio",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -110,16 +110,16 @@ with col_status:
     try:
         res = requests.get(f"{API_URL}/", timeout=2)
         if res.status_code == 200:
-            st.markdown('<div style="text-align:right;"><span class="status-badge status-ok">API Bagli</span></div>', unsafe_allow_html=True)
+            st.markdown('<div style="text-align:right;"><span class="status-badge status-ok">API Connected</span></div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div style="text-align:right;"><span class="status-badge status-err">API Hatasi</span></div>', unsafe_allow_html=True)
+            st.markdown('<div style="text-align:right;"><span class="status-badge status-err">API Error</span></div>', unsafe_allow_html=True)
     except requests.exceptions.ConnectionError:
-        st.markdown('<div style="text-align:right;"><span class="status-badge status-err">Baglanti Yok</span></div>', unsafe_allow_html=True)
+        st.markdown('<div style="text-align:right;"><span class="status-badge status-err">No Connection</span></div>', unsafe_allow_html=True)
 
 st.divider()
 
 with st.sidebar:
-    st.header("Pipeline Ayarlari")
+    st.header("Pipeline Arrangements")
 
     with st.expander("1. Data Pre-processing", expanded=True):
         data_type = st.selectbox("Data Type", ["ordinal", "nonordinal", "image"], index=0)
@@ -189,113 +189,137 @@ with st.container(border=True):
         type=["csv", "tsv", "xlsx", "xls", "txt"]
     )
 
+    columns = []
     if uploaded_file is not None:
         if "uploaded_filename" not in st.session_state or st.session_state.uploaded_filename != uploaded_file.name:
             with st.spinner("The dataset is being analyzed..."):
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
                 try:
-                    upload_res = requests.post(f"{API_URL}/upload-data/", files=files)
-                    if upload_res.status_code == 200:
-                        st.session_state.preview_data = upload_res.json()
-                        st.session_state.uploaded_filename = uploaded_file.name
+                    ext = uploaded_file.name.rsplit(".", 1)[-1].lower()
+                    uploaded_file.seek(0)
+                    if ext in {"xlsx", "xls"}:
+                        df_preview = pd.read_excel(uploaded_file)
+                    elif ext == "tsv":
+                        df_preview = pd.read_csv(uploaded_file, sep="\t")
                     else:
-                        st.error(f"File reading error: {upload_res.text}")
-                except Exception as e:
-                    st.error(f"Connection error: {e}")
+                        df_preview = pd.read_csv(uploaded_file, sep=None, engine="python")
 
-    if "preview_data" in st.session_state:
+                    st.session_state.preview_data = {
+                        "filename": uploaded_file.name,
+                        "rows": len(df_preview),
+                        "columns": list(df_preview.columns),
+                        "preview": df_preview.head(10).to_dict(orient="records"),
+                    }
+                    st.session_state.uploaded_filename = uploaded_file.name
+                except Exception as e:
+                    st.warning(f"Local preview could not be parsed ({e}). You can still run training directly via /one-click/.")
+                    st.session_state.preview_data = {
+                        "filename": uploaded_file.name,
+                        "rows": "N/A",
+                        "columns": [],
+                        "preview": [],
+                    }
+                    st.session_state.uploaded_filename = uploaded_file.name
+
+    if uploaded_file is not None and "preview_data" in st.session_state:
         pdata = st.session_state.preview_data
+        columns = pdata.get("columns", [])
         st.markdown("---")
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("File name", pdata["filename"])
         m2.metric("Number of Rows", pdata["rows"])
-        m3.metric("Number of Columns", len(pdata["columns"]))
+        m3.metric("Number of Columns", len(columns))
         m4.metric("Selected Model", model_name)
 
-        st.dataframe(pd.DataFrame(pdata["preview"]), use_container_width=True)
+        if pdata.get("preview"):
+            st.dataframe(pd.DataFrame(pdata["preview"]), use_container_width=True)
 
-        default_idx = pdata["columns"].index("target") if "target" in pdata["columns"] else len(pdata["columns"]) - 1
-        col_target, col_btn = st.columns([3, 1], vertical_alignment="bottom")
-        with col_target:
+    col_target, col_btn = st.columns([3, 1], vertical_alignment="bottom")
+    with col_target:
+        if columns:
+            default_idx = columns.index("target") if "target" in columns else len(columns) - 1
             ylabel = st.selectbox(
                 "Target Column (ylabel)",
-                options=pdata["columns"],
+                options=columns,
                 index=default_idx
             )
-        with col_btn:
-            run_button = st.button("Start Training", type="primary")
+        else:
+            ylabel = st.text_input("Target Column (ylabel)", value="target")
 
-        if run_button:
-            if uploaded_file is None:
-                st.warning("Please upload a file before starting training.")
-            else:
-                with st.spinner(f"{model_name} model is being trained..."):
-                    query_params = {
-                        "scale": scale,
-                        "normalize": normalize,
-                        "encode": encode,
-                        "data_type": data_type,
-                        "ylabel": ylabel,
-                        "test_size": test_size,
-                        "train_size": train_size,
-                        "split_by": split_by,
-                        "left_size": left_size,
-                        "right_size": right_size,
-                        "shuffle": shuffle,
-                        "random_state": int(random_state),
-                        "model_type": str(model_type).strip().lower(),
-                        "model_name": model_name,
-                        "alpha": float(alpha),
-                        "C": float(C),
-                        "l1_ratio": float(l1_ratio),
-                        "dual": dual,
-                        "fit_intercept": fit_intercept,
-                        "max_iter": int(max_iter),
-                        "selection": selection,
-                        "degree": int(degree),
-                        "kernel": kernel,
-                        "max_depth": int(max_depth),
-                        "neighbors": int(neighbors),
-                        "n_estimators": int(n_estimators),
-                        "weights": weights,
-                        "algorithm": algorithm,
-                        "criterion": criterion,
-                        "n_neighbors": int(n_neighbors),
-                        "max_features": parse_max_features(max_features_raw),
-                        "priors": parse_priors(priors_raw),
-                        "loss": loss,
-                        "learning_rate": float(learning_rate),
-                        "n_clusters": int(n_clusters),
-                        "eps": float(eps),
-                        "min_samples": int(min_samples),
-                        "linkage": linkage,
-                        "bandwidth": parse_optional_float_or_none(bandwidth_raw),
-                        "damping": float(damping),
-                        "n_components": int(n_components),
-                        "gamma": parse_optional_float_or_none(gamma_raw),
-                        "perplexity": float(perplexity),
-                        "init": init,
-                    }
+    with col_btn:
+        run_button = st.button("Start Training", type="primary")
 
-                    # None değerlerini query parametrelerinden temizle (FastAPI varsayılan None değerini kullanır)
-                    cleaned_query_params = {k: v for k, v in query_params.items() if v is not None}
+    if run_button:
+        if uploaded_file is None:
+            st.warning("Please upload a file before starting training.")
+        else:
+            with st.spinner(f"{model_name} model is being trained..."):
+                query_params = {
+                    "scale": scale,
+                    "normalize": normalize,
+                    "encode": encode,
+                    "data_type": data_type,
+                    "ylabel": ylabel,
+                    "test_size": test_size,
+                    "train_size": train_size,
+                    "split_by": split_by,
+                    "left_size": left_size,
+                    "right_size": right_size,
+                    "shuffle": shuffle,
+                    "random_state": int(random_state),
+                    "model_type": str(model_type).strip().lower(),
+                    "model_name": model_name,
+                    "alpha": float(alpha),
+                    "C": float(C),
+                    "l1_ratio": float(l1_ratio),
+                    "dual": dual,
+                    "fit_intercept": fit_intercept,
+                    "max_iter": int(max_iter),
+                    "selection": selection,
+                    "degree": int(degree),
+                    "kernel": kernel,
+                    "max_depth": int(max_depth),
+                    "neighbors": int(neighbors),
+                    "n_estimators": int(n_estimators),
+                    "weights": weights,
+                    "algorithm": algorithm,
+                    "criterion": criterion,
+                    "n_neighbors": int(n_neighbors),
+                    "max_features": parse_max_features(max_features_raw),
+                    "priors": parse_priors(priors_raw),
+                    "loss": loss,
+                    "learning_rate": float(learning_rate),
+                    "n_clusters": int(n_clusters),
+                    "eps": float(eps),
+                    "min_samples": int(min_samples),
+                    "linkage": linkage,
+                    "bandwidth": parse_optional_float_or_none(bandwidth_raw),
+                    "damping": float(damping),
+                    "n_components": int(n_components),
+                    "gamma": parse_optional_float_or_none(gamma_raw),
+                    "perplexity": float(perplexity),
+                    "init": init,
+                }
 
-                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                cleaned_query_params = {k: v for k, v in query_params.items() if v is not None}
 
-                    try:
-                        response = requests.post(
-                            f"{API_URL}/one-click/",
-                            params=cleaned_query_params,
-                            files=files
-                        )
-                        if response.status_code == 200:
-                            st.session_state.last_result = response.json()
-                            st.session_state.last_params = query_params
-                        else:
-                            st.error(f"API Error ({response.status_code}): {response.text}")
-                    except Exception as e:
-                        st.error(f"Request Error: {str(e)}")
+                uploaded_file.seek(0)
+                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+
+                try:
+                    response = requests.post(
+                        f"{API_URL}/one-click/",
+                        params=cleaned_query_params,
+                        files=files
+                    )
+                    if response.status_code == 200:
+                        st.session_state.last_result = response.json()
+                        st.session_state.last_params = query_params
+                    else:
+                        st.error(f"API Error ({response.status_code}): {response.text}")
+                except Exception as e:
+                    st.error(f"Request Error: {str(e)}")
+
 
 if "last_result" in st.session_state:
     result = st.session_state.last_result
