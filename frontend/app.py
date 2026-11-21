@@ -9,7 +9,7 @@ st.set_page_config(
 )
 
 import os
-API_URL = os.getenv("API_URL", "http://127.0.0.1:10000")
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8501")
 
 st.markdown("""
     <style>
