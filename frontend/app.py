@@ -254,7 +254,7 @@ with st.container(border=True):
             ylabel = st.text_input("Target Column (ylabel)", value="target")
 
     with col_btn:
-        run_button = st.button("Start Training", type="primary")
+        run_button = st.button("Start Stream", type="primary")
 
     if run_button:
         if uploaded_file is None:
