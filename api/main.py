@@ -381,156 +381,162 @@ class ModelNameEnum(str, Enum):
 @one_click_router.post("/")
 async def one_click(
     file: UploadFile = File(...),
-    scale: Optional[bool] = None,
-    normalize: Optional[bool] = None,
-    encode: Optional[bool] = None,
-    data_type: Optional[DataTypeEnum] = None,
+    scale: bool = True,
+    normalize: bool = False,
+    encode: bool = True,
+    data_type: DataTypeEnum = DataTypeEnum.ordinal,
     ylabel: Optional[str] = None,
-    test_size: Optional[float] = None,
-    train_size: Optional[float] = None,
-    split_by: Optional[str] = None,
-    left_size: Optional[float] = None,
-    right_size: Optional[float] = None,
-    shuffle: Optional[bool] = None,
-    random_state: Optional[int] = None,
-    model_type: Optional[ModelTypeEnum] = None,
-    model_name: Optional[ModelNameEnum] = None,
-    alpha: Optional[float] = None,
-    C: Optional[float] = None,
-    l1_ratio: Optional[float] = None,
-    dual: Optional[bool] = None,
-    fit_intercept: Optional[bool] = None,
-    max_iter: Optional[int] = None,
-    selection: Optional[str] = None,
-    degree: Optional[int] = None,
-    kernel: Optional[str] = None,
-    max_depth: Optional[int] = None,
-    neighbors: Optional[int] = None,
-    n_estimators: Optional[int] = None,
-    weights: Optional[str] = None,
-    algorithm: Optional[str] = None,
-    criterion: Optional[str] = None,
-    n_neighbors: Optional[int] = None,
-    max_features: Any = None,
+    test_size: float = 0.2,
+    train_size: float = 0.8,
+    split_by: str = "train",
+    left_size: float = 0.8,
+    right_size: float = 0.2,
+    shuffle: bool = True,
+    random_state: int = 42,
+    model_type: ModelTypeEnum = ModelTypeEnum.regression,
+    model_name: ModelNameEnum = ModelNameEnum.random_forest_reg,
+    alpha: float = 1.0,
+    C: float = 1.0,
+    l1_ratio: float = 0.5,
+    dual: bool = True,
+    fit_intercept: bool = True,
+    max_iter: int = 100,
+    selection: str = "random",
+    degree: int = 3,
+    kernel: str = "rbf",
+    max_depth: int = 5,
+    neighbors: int = 5,
+    n_estimators: int = 100,
+    weights: str = "uniform",
+    algorithm: str = "auto",
+    criterion: str = "squared_error",
+    n_neighbors: int = 10,
+    max_features: Any = "sqrt",
     priors: Any = None,
-    loss: Optional[str] = None,
-    learning_rate: Optional[float] = None,
-    n_clusters: Optional[int] = None,
-    eps: Optional[float] = None,
-    min_samples: Optional[int] = None,
-    linkage: Optional[str] = None,
+    loss: str = "squared_error",
+    learning_rate: float = 0.05,
+    n_clusters: int = 3,
+    eps: float = 0.5,
+    min_samples: int = 5,
+    linkage: str = "ward",
     bandwidth: Optional[float] = None,
-    damping: Optional[float] = None,
-    n_components: Optional[int] = None,
-    gamma: Any = None,
-    perplexity: Optional[float] = None,
-    init: Optional[str] = None,
+    damping: float = 0.5,
+    n_components: int = 2,
+    gamma: Any = "scale",
+    perplexity: float = 30.0,
+    init: str = "pca",
 ):
-    filename = file.filename
-    filename_lower = filename.lower()
-    contents = await file.read()
+    try:
+        filename = file.filename
+        filename_lower = filename.lower()
+        contents = await file.read()
 
-    if filename_lower.endswith(".csv"):
-        df = load_csv_file(io.BytesIO(contents))
-    elif filename_lower.endswith(".tsv"):
-        df = load_tsv_file(io.BytesIO(contents))
-    elif filename_lower.endswith((".xlsx", ".xls")):
-        df = load_xlsx_file(io.BytesIO(contents))
-    elif filename_lower.endswith(".txt"):
-        df = pd.read_csv(io.BytesIO(contents), sep=None, engine="python")
-    else:
-        raise HTTPException(status_code=400, detail="File format not supported.")
+        if filename_lower.endswith(".csv"):
+            df = load_csv_file(io.BytesIO(contents))
+        elif filename_lower.endswith(".tsv"):
+            df = load_tsv_file(io.BytesIO(contents))
+        elif filename_lower.endswith((".xlsx", ".xls")):
+            df = load_xlsx_file(io.BytesIO(contents))
+        elif filename_lower.endswith(".txt"):
+            df = pd.read_csv(io.BytesIO(contents), sep=None, engine="python")
+        else:
+            raise HTTPException(status_code=400, detail="File format not supported.")
 
-    dt_val = data_type.value if hasattr(data_type, "value") else data_type
-    df = preprocess_data(df, scale, normalize, encode, data_type=dt_val)
+        dt_val = data_type.value if hasattr(data_type, "value") else data_type
+        df = preprocess_data(df, scale, normalize, encode, data_type=dt_val)
 
-    X_train, X_test, y_train, y_test = split_data(
-        df=df,
-        data_type=dt_val,
-        ylabel=ylabel,
-        test_size=test_size,
-        train_size=train_size,
-        split_by=split_by,
-        left_size=left_size,
-        right_size=right_size,
-        shuffle=shuffle,
-        random_state=random_state,
-    )
+        X_train, X_test, y_train, y_test = split_data(
+            df=df,
+            data_type=dt_val,
+            ylabel=ylabel,
+            test_size=test_size,
+            train_size=train_size,
+            split_by=split_by,
+            left_size=left_size,
+            right_size=right_size,
+            shuffle=shuffle,
+            random_state=random_state,
+        )
 
-    model_type_val = model_type.value if hasattr(model_type, "value") else model_type
-    model_name_val = model_name.value if hasattr(model_name, "value") else model_name
+        model_type_val = model_type.value if hasattr(model_type, "value") else model_type
+        model_name_val = model_name.value if hasattr(model_name, "value") else model_name
 
-    model, model_desc = select_model(
-        model_type=model_type_val,
-        model_name=model_name_val,
-        alpha=alpha,
-        C=C,
-        l1_ratio=l1_ratio,
-        dual=dual,
-        fit_intercept=fit_intercept,
-        max_iter=max_iter,
-        selection=selection,
-        degree=degree,
-        kernel=kernel,
-        max_depth=max_depth,
-        neighbors=neighbors,
-        n_estimators=n_estimators,
-        weights=weights,
-        algorithm=algorithm,
-        criterion=criterion,
-        n_neighbors=n_neighbors,
-        max_features=max_features,
-        priors=priors,
-        loss=loss,
-        learning_rate=learning_rate,
-        n_clusters=n_clusters,
-        eps=eps,
-        min_samples=min_samples,
-        linkage=linkage,
-        bandwidth=bandwidth,
-        damping=damping,
-        n_components=n_components,
-        gamma=gamma,
-        perplexity=perplexity,
-        init=init,
-    )
+        model, model_desc = select_model(
+            model_type=model_type_val,
+            model_name=model_name_val,
+            alpha=alpha,
+            C=C,
+            l1_ratio=l1_ratio,
+            dual=dual,
+            fit_intercept=fit_intercept,
+            max_iter=max_iter,
+            selection=selection,
+            degree=degree,
+            kernel=kernel,
+            max_depth=max_depth,
+            neighbors=neighbors,
+            n_estimators=n_estimators,
+            weights=weights,
+            algorithm=algorithm,
+            criterion=criterion,
+            n_neighbors=n_neighbors,
+            max_features=max_features,
+            priors=priors,
+            loss=loss,
+            learning_rate=learning_rate,
+            n_clusters=n_clusters,
+            eps=eps,
+            min_samples=min_samples,
+            linkage=linkage,
+            bandwidth=bandwidth,
+            damping=damping,
+            n_components=n_components,
+            gamma=gamma,
+            perplexity=perplexity,
+            init=init,
+        )
 
-    trained_model = train_model(model, X_train, y_train)
-    predictions = predict_data(trained_model, X_test)
+        trained_model = train_model(model, X_train, y_train)
+        predictions = predict_data(trained_model, X_test)
 
-    evaluation_results = evaluate_model(
-        type=model_type_val,
-        X=X_test,
-        labels_pred=None,
-        y_test=y_test,
-        y_pred=predictions,
-        X_original=None,
-        X_embedded=None,
-        y=y_test,
-        n_neighbors=n_neighbors,
-    )
-    result = {
-        "status": "Success",
-        "filename": filename,
-        "model_info": model_desc,
-        "predictions": predictions.tolist() if hasattr(predictions, "tolist") else predictions,
-        "evaluation": evaluation_results,
-    }
-    for var_name in (
-        "contents",
-        "df",
-        "X_train",
-        "X_test",
-        "y_train",
-        "y_test",
-        "model",
-        "trained_model",
-        "predictions",
-    ):
-        if var_name in locals():
-            del locals()[var_name]
-    gc.collect()
-    return result
+        evaluation_results = evaluate_model(
+            type=model_type_val,
+            X=X_test,
+            labels_pred=None,
+            y_test=y_test,
+            y_pred=predictions,
+            X_original=None,
+            X_embedded=None,
+            y=y_test,
+            n_neighbors=n_neighbors,
+        )
+        result = {
+            "status": "Success",
+            "filename": filename,
+            "model_info": model_desc,
+            "predictions": predictions.tolist() if hasattr(predictions, "tolist") else predictions,
+            "evaluation": evaluation_results,
+        }
+        for var_name in (
+            "contents",
+            "df",
+            "X_train",
+            "X_test",
+            "y_train",
+            "y_test",
+            "model",
+            "trained_model",
+            "predictions",
+        ):
+            if var_name in locals():
+                del locals()[var_name]
+        gc.collect()
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pipeline error: {type(exc).__name__}: {exc}")
+
 
 
 if __name__ == "__main__":
