@@ -1,6 +1,11 @@
 # # Machine Learning Stream 
 
-is a modular Python toolkit designed to streamline machine learning workflows. It provides centralized selection functions for a wide range of algorithms, spanning regression, classification, clustering, dimensionality reduction, and feature transformation. Each selection function automatically instantiates the chosen model with customizable hyperparameters while returning a detailed technical description of its underlying mechanics.
+is a modular Python toolkit designed to streamline machine learning workflows. It provides centralized selection functions for a wide range of algorithms, spanning regression, classification, clustering, dimensionality reduction, and feature transformation. 
+
+It consists of a Streamlit frontend and a FastAPI-based backend, designed to execute machine learning workflows either in a single click or step-by-step.
+
+By ensuring that training, prediction, and evaluation endpoints operate exclusively via IDs—rather than relying on request bodies—and by resolving potential mismatches in hyperparameters and enumerations between the frontend and backend, a stable workflow has been achieved. The application can be deployed as a live service (e.g., on Render) or run locally by executing the FastAPI and Streamlit components as separate processes.
+
 Below is the complete list of all 56 algorithms and preprocessing tools implemented in the toolkit, categorized by their primary machine learning tasks:
 
 # 1. Linear and Generalized Models
