@@ -1,7 +1,7 @@
 
 import numpy as np
 import pandas as pd
-from process.model_selection.select_model import select_model
+from process.model_selection.select_model2 import select_model
 
 
 def _extract_estimator(model):
