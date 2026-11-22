@@ -11,7 +11,7 @@ if str(ROOT_DIR) not in sys.path:
 from data.config import API_URL
 
 st.set_page_config(
-    page_title="AutoML Studio",
+    page_title="Machine Learning Stream",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -110,7 +110,7 @@ def parse_priors(raw_value: str):
 
 col_title, col_status = st.columns([4, 1], vertical_alignment="center")
 with col_title:
-    st.title("AutoML Implementation Studio")
+    st.title("Machine Learning Stream")
     st.caption("FastAPI-based end-to-end machine learning training and evaluation interface")
 
 with col_status:
