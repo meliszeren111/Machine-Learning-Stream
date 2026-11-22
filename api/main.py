@@ -445,6 +445,11 @@ async def one_click(
         dt_val = data_type.value if hasattr(data_type, "value") else data_type
         df = preprocess_data(df, scale, normalize, encode, data_type=dt_val)
 
+        if hasattr(df, "toarray"):
+            df = pd.DataFrame(df.toarray())
+        elif not isinstance(df, pd.DataFrame):
+            df = pd.DataFrame(df)
+
         X_train, X_test, y_train, y_test = split_data(
             df=df,
             data_type=dt_val,
