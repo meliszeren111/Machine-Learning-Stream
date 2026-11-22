@@ -1,13 +1,11 @@
-
-
 print("[BOOT] 1. api/main.py started", flush=True)
 import gc
-import io
 import os
 from enum import Enum
-from typing import Any, Optional
-
-import pandas as pd
+import pickle
+import tempfile
+import uuid
+from typing import Any, Dict, Optional
 print("[BOOT] 2. pandas imported", flush=True)
 from fastapi import APIRouter, Body, FastAPI, File, HTTPException, UploadFile
 print("[BOOT] 3. fastapi imported", flush=True)
@@ -33,11 +31,12 @@ print("[BOOT] 12. predict_data imported", flush=True)
 from process.training.train_model import train_model
 print("[BOOT] 13. train_model imported", flush=True)
 
+
 app = FastAPI(title="ML Implementation API", version="1.0")
 upload_router = APIRouter(prefix="/upload-data", tags=["Upload"])
 preprocess_router = APIRouter(prefix="/preprocess-data", tags=["Preprocess"])
 split_router = APIRouter(prefix="/split-data", tags=["Split"])
-select_router = APIRouter(prefix="/select-data", tags=["Select"])
+select_router = APIRouter(prefix="/select-model", tags=["Select"])
 train_router = APIRouter(prefix="/train-model", tags=["Train"])
 predict_router = APIRouter(prefix="/predict-data", tags=["Predict"])
 evaluate_router = APIRouter(prefix="/evaluate-model", tags=["Evaluate"])
@@ -51,6 +50,16 @@ app.include_router(train_router)
 app.include_router(predict_router)
 app.include_router(evaluate_router)
 app.include_router(one_click_router)
+
+
+import os
+import pickle
+import tempfile
+import uuid
+from typing import Any, Dict, Optional
+
+import pandas as pd
+from fastapi import APIRouter, Body, FastAPI, File, HTTPException, UploadFile
 
 
 def _to_df(data: Any) -> Optional[pd.DataFrame]:
@@ -67,6 +76,63 @@ def _to_df(data: Any) -> Optional[pd.DataFrame]:
     return pd.DataFrame(data)
 
 
+TEMP_DIR = os.path.join(tempfile.gettempdir(), "ml_pipeline_tmp")
+os.makedirs(TEMP_DIR, exist_ok=True)
+
+LATEST_STATE: Dict[str, Optional[str]] = {
+    "raw_temp_id": None,
+    "preprocessed_temp_id": None,
+    "active_temp_id": None,
+    "split_id": None,
+    "model_id": None,
+    "predictions_id": None,
+}
+
+MODEL_STORE: Dict[str, Any] = {}
+
+
+def _save_temp(payload: Any, existing_id: Optional[str] = None) -> str:
+    temp_id = existing_id or str(uuid.uuid4())
+    file_path = os.path.join(TEMP_DIR, f"{temp_id}.pkl")
+    with open(file_path, "wb") as f:
+        pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+    return temp_id
+
+
+def _load_temp(temp_id: Optional[str]) -> Any:
+    if not temp_id:
+        return None
+    file_path = os.path.join(TEMP_DIR, f"{temp_id}.pkl")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Temporary data '{temp_id}' not found.")
+    with open(file_path, "rb") as f:
+        return pickle.load(f)
+
+
+def _resolve_available_temp_id(preferred_order: list[str]) -> Optional[str]:
+    for key in preferred_order:
+        candidate_id = LATEST_STATE.get(key)
+        if candidate_id and os.path.exists(os.path.join(TEMP_DIR, f"{candidate_id}.pkl")):
+            return candidate_id
+    return None
+
+
+def _ensure_df(data: Any) -> Optional[pd.DataFrame]:
+    if data is None:
+        return None
+    if hasattr(data, "toarray"):
+        return pd.DataFrame(data.toarray())
+    if isinstance(data, pd.DataFrame):
+        return data
+    if isinstance(data, list):
+        return pd.DataFrame(data)
+    if isinstance(data, dict):
+        if "df" in data and data["df"] is not None:
+            return _ensure_df(data["df"])
+        return pd.DataFrame([data])
+    return pd.DataFrame(data)
+
+
 @app.get("/")
 def read_root():
     return {"message": "ML Implementation API is running successfully."}
@@ -74,228 +140,390 @@ def read_root():
 
 @upload_router.post("/")
 async def upload(file: UploadFile = File(...)):
-    filename_lower = file.filename.lower()
-    contents = await file.read()
-    df = get_data_from_file_binary(contents, filename_lower)
-    return {
-        "filename": file.filename,
-        "rows": int(df.shape[0]),
-        "columns": list(df.columns),
-        "preview": df.head(3).to_dict(orient="records"),
-    }
+    try:
+        filename_lower = file.filename.lower()
+        contents = await file.read()
+        df = get_data_from_file_binary(contents, filename_lower)
+        df = _ensure_df(df)
+        temp_id = _save_temp(df)
+
+        LATEST_STATE["raw_temp_id"] = temp_id
+        LATEST_STATE["preprocessed_temp_id"] = None
+        LATEST_STATE["active_temp_id"] = temp_id
+        LATEST_STATE["split_id"] = None
+        LATEST_STATE["predictions_id"] = None
+
+        return {
+            "temp_id": temp_id,
+            "filename": file.filename,
+            "rows": int(df.shape[0]),
+            "columns": list(df.columns),
+            "preview": df.head(3).to_dict(orient="records"),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Upload error: {type(exc).__name__}: {exc}")
 
 
 @preprocess_router.post("/")
 async def preprocess(
+    temp_id: Optional[str] = None,
     df: Any = Body(None),
-    scale: Optional[bool] = None,
-    normalize: Optional[bool] = None,
-    encode: Optional[bool] = None,
-    data_type: Optional[str] = None,
+    scale: bool = True,
+    normalize: bool = False,
+    encode: bool = True,
+    data_type: str = "ordinal",
 ):
-    payload_df = df.get("df") if isinstance(df, dict) and "df" in df and len(df) == 1 else df
-    parsed_df = _to_df(payload_df)
-    if parsed_df is None:
-        raise HTTPException(status_code=400, detail="df is required for preprocessing.")
+    try:
+        resolved_temp_id = temp_id or _resolve_available_temp_id(["raw_temp_id", "active_temp_id"])
+        source_data = _load_temp(resolved_temp_id) if resolved_temp_id else df
+        payload_df = (
+            source_data.get("df")
+            if isinstance(source_data, dict) and "df" in source_data and len(source_data) == 1
+            else source_data
+        )
+        parsed_df = _ensure_df(payload_df)
+        if parsed_df is None:
+            raise HTTPException(status_code=400, detail="No available dataset found for preprocessing.")
 
-    result = preprocess_data(
-        parsed_df,
-        scale=scale,
-        normalize=normalize,
-        encode=encode,
-        data_type=data_type,
-    )
-    if isinstance(result, pd.DataFrame):
-        return result.to_dict(orient="records")
-    return result
+        dt_val = data_type.value if hasattr(data_type, "value") else data_type
+        result = preprocess_data(
+            parsed_df,
+            scale=scale,
+            normalize=normalize,
+            encode=encode,
+            data_type=dt_val,
+        )
+        processed_df = _ensure_df(result)
+        saved_id = _save_temp(processed_df)
+
+        LATEST_STATE["preprocessed_temp_id"] = saved_id
+        LATEST_STATE["active_temp_id"] = saved_id
+        LATEST_STATE["split_id"] = None
+        LATEST_STATE["predictions_id"] = None
+
+        return {
+            "temp_id": saved_id,
+            "source_temp_id": resolved_temp_id,
+            "rows": int(processed_df.shape[0]),
+            "columns": list(processed_df.columns),
+            "preview": processed_df.head(3).to_dict(orient="records"),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Preprocess error: {type(exc).__name__}: {exc}")
 
 
 @split_router.post("/")
 async def split(
+    temp_id: Optional[str] = None,
     df: Any = Body(None),
     huggingface_dataset: Optional[str] = None,
-    data_type: Optional[str] = None,
+    data_type: str = "ordinal",
     ylabel: Optional[str] = None,
-    test_size: Optional[float] = None,
-    train_size: Optional[float] = None,
-    split: Optional[str] = None,
-    left_size: Optional[float] = None,
-    right_size: Optional[float] = None,
-    shuffle: Optional[bool] = None,
-    random_state: Optional[int] = None,
+    test_size: float = 0.2,
+    train_size: float = 0.8,
+    split_by: str = "train",
+    left_size: float = 0.8,
+    right_size: float = 0.2,
+    shuffle: bool = True,
+    random_state: int = 42,
 ):
-    payload_df = df.get("df") if isinstance(df, dict) and "df" in df and len(df) == 1 else df
-    parsed_df = _to_df(payload_df)
+    try:
+        resolved_temp_id = temp_id or _resolve_available_temp_id([
+            "preprocessed_temp_id",
+            "active_temp_id",
+            "raw_temp_id",
+        ])
+        source_data = _load_temp(resolved_temp_id) if resolved_temp_id else df
+        payload_df = (
+            source_data.get("df")
+            if isinstance(source_data, dict) and "df" in source_data and len(source_data) == 1
+            else source_data
+        )
+        parsed_df = _ensure_df(payload_df)
 
-    X_train, X_test, y_train, y_test = split_data(
-        df=parsed_df,
-        huggingface_dataset=huggingface_dataset,
-        data_type=data_type,
-        ylabel=ylabel,
-        test_size=test_size,
-        train_size=train_size,
-        left_size=left_size,
-        right_size=right_size,
-        shuffle=shuffle,
-        random_state=random_state,
-    )
+        dt_val = data_type.value if hasattr(data_type, "value") else data_type
+        X_train, X_test, y_train, y_test = split_data(
+            df=parsed_df,
+            huggingface_dataset=huggingface_dataset,
+            data_type=dt_val,
+            ylabel=ylabel,
+            test_size=test_size,
+            train_size=train_size,
+            split_by=split_by,
+            left_size=left_size,
+            right_size=right_size,
+            shuffle=shuffle,
+            random_state=random_state,
+        )
 
-    def _serialize(obj: Any):
-        if obj is None:
-            return None
-        if isinstance(obj, pd.DataFrame):
-            return obj.to_dict(orient="records")
-        if isinstance(obj, pd.Series):
-            return obj.tolist()
-        if hasattr(obj, "tolist"):
-            return obj.tolist()
-        return obj
+        split_id = _save_temp({
+            "X_train": X_train,
+            "X_test": X_test,
+            "y_train": y_train,
+            "y_test": y_test,
+        })
+        LATEST_STATE["split_id"] = split_id
+        LATEST_STATE["predictions_id"] = None
 
-    return {
-        "X_train": _serialize(X_train),
-        "X_test": _serialize(X_test),
-        "y_train": _serialize(y_train),
-        "y_test": _serialize(y_test),
-    }
-import uuid
-from typing import Any, Dict, Optional
-
-MODEL_STORE: Dict[str, Any] = {}
+        return {
+            "split_id": split_id,
+            "source_temp_id": resolved_temp_id,
+            "X_train_shape": getattr(X_train, "shape", None),
+            "X_test_shape": getattr(X_test, "shape", None),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Split error: {type(exc).__name__}: {exc}")
 
 
 @select_router.post("/")
 async def select(
-    model_type: Optional[str] = None,
-    model_name: Optional[str] = None,
-    alpha: Optional[float] = None,
-    C: Optional[float] = None,
-    l1_ratio: Optional[float] = None,
-    dual: Optional[bool] = None,
-    fit_intercept: Optional[bool] = None,
-    max_iter: Optional[int] = None,
-    selection: Optional[str] = None,
-    degree: Optional[int] = None,
-    kernel: Optional[str] = None,
-    max_depth: Optional[int] = None,
-    neighbors: Optional[int] = None,
-    n_estimators: Optional[int] = None,
-    weights: Optional[str] = None,
-    algorithm: Optional[str] = None,
-    criterion: Optional[str] = None,
-    n_neighbors: Optional[int] = None,
-    max_features: Any = None,
+    model_type: str = "regression",
+    model_name: str = "RandomForestRegressor",
+    alpha: float = 1.0,
+    C: float = 1.0,
+    l1_ratio: float = 0.5,
+    dual: bool = True,
+    fit_intercept: bool = True,
+    max_iter: int = 100,
+    selection: str = "random",
+    degree: int = 3,
+    kernel: str = "rbf",
+    max_depth: int = 5,
+    neighbors: int = 5,
+    n_estimators: int = 100,
+    weights: str = "uniform",
+    algorithm: str = "auto",
+    criterion: str = "squared_error",
+    n_neighbors: int = 10,
+    max_features: Any = "sqrt",
     priors: Any = None,
-    loss: Optional[str] = None,
-    learning_rate: Optional[float] = None,
-    n_clusters: Optional[int] = None,
-    eps: Optional[float] = None,
-    min_samples: Optional[int] = None,
-    linkage: Optional[str] = None,
+    loss: str = "squared_error",
+    learning_rate: float = 0.05,
+    n_clusters: int = 3,
+    eps: float = 0.5,
+    min_samples: int = 5,
+    linkage: str = "ward",
     bandwidth: Optional[float] = None,
-    damping: Optional[float] = None,
-    n_components: Optional[int] = None,
-    gamma: Any = None,
-    perplexity: Optional[float] = None,
-    init: Optional[str] = None,
+    damping: float = 0.5,
+    n_components: int = 2,
+    gamma: Any = "scale",
+    perplexity: float = 30.0,
+    init: str = "pca",
 ):
-    estimator, model_desc = select_model(
-        model_type=model_type,
-        model_name=model_name,
-        alpha=alpha,
-        C=C,
-        l1_ratio=l1_ratio,
-        dual=dual,
-        fit_intercept=fit_intercept,
-        max_iter=max_iter,
-        selection=selection,
-        degree=degree,
-        kernel=kernel,
-        max_depth=max_depth,
-        neighbors=neighbors,
-        n_estimators=n_estimators,
-        weights=weights,
-        algorithm=algorithm,
-        criterion=criterion,
-        n_neighbors=n_neighbors,
-        max_features=max_features,
-        priors=priors,
-        loss=loss,
-        learning_rate=learning_rate,
-        n_clusters=n_clusters,
-        eps=eps,
-        min_samples=min_samples,
-        linkage=linkage,
-        bandwidth=bandwidth,
-        damping=damping,
-        n_components=n_components,
-        gamma=gamma,
-        perplexity=perplexity,
-        init=init,
-    )
-    model_id = str(uuid.uuid4())
-    MODEL_STORE[model_id] = estimator
-    return {
-        "model_id": model_id,
-        "model_name": model_name,
-        "model_type": model_type,
-        "model_info": model_desc,
-    }
+    try:
+        model_type_val = model_type.value if hasattr(model_type, "value") else model_type
+        model_name_val = model_name.value if hasattr(model_name, "value") else model_name
+
+        estimator, model_desc = select_model(
+            model_type=model_type_val,
+            model_name=model_name_val,
+            alpha=alpha,
+            C=C,
+            l1_ratio=l1_ratio,
+            dual=dual,
+            fit_intercept=fit_intercept,
+            max_iter=max_iter,
+            selection=selection,
+            degree=degree,
+            kernel=kernel,
+            max_depth=max_depth,
+            neighbors=neighbors,
+            n_estimators=n_estimators,
+            weights=weights,
+            algorithm=algorithm,
+            criterion=criterion,
+            n_neighbors=n_neighbors,
+            max_features=max_features,
+            priors=priors,
+            loss=loss,
+            learning_rate=learning_rate,
+            n_clusters=n_clusters,
+            eps=eps,
+            min_samples=min_samples,
+            linkage=linkage,
+            bandwidth=bandwidth,
+            damping=damping,
+            n_components=n_components,
+            gamma=gamma,
+            perplexity=perplexity,
+            init=init,
+        )
+        model_id = str(uuid.uuid4())
+        MODEL_STORE[model_id] = estimator
+        LATEST_STATE["model_id"] = model_id
+        return {
+            "model_id": model_id,
+            "model_name": model_name_val,
+            "model_type": model_type_val,
+            "model_info": model_desc,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Select error: {type(exc).__name__}: {exc}")
 
 
 @train_router.post("/")
 async def train(
-    model: Any = Body(None),
-    X_train: Any = Body(None),
-    y_train: Any = Body(None),
+    model_id: Optional[str] = None,
+    split_id: Optional[str] = None,
 ):
-    target_model = model
-    if isinstance(model, dict) and "model_id" in model:
-        target_model = MODEL_STORE.get(model["model_id"], model)
-    elif isinstance(model, str) and model in MODEL_STORE:
-        target_model = MODEL_STORE[model]
+    try:
+        resolved_split_id = (
+            split_id
+            or LATEST_STATE.get("split_id")
+        )
+        if not resolved_split_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No split dataset found. Pass split_id / split_temp_id or run /split-data/ first.",
+            )
 
-    trained = train_model(target_model, X_train, y_train)
-    if isinstance(model, dict) and "model_id" in model:
-        MODEL_STORE[model["model_id"]] = trained
-        return {"model_id": model["model_id"], "status": "trained"}
-    elif isinstance(model, str) and model in MODEL_STORE:
-        MODEL_STORE[model] = trained
-        return {"model_id": model, "status": "trained"}
-    return trained
+        split_bundle = _load_temp(resolved_split_id)
+        if not isinstance(split_bundle, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid split data in '{resolved_split_id}'.",
+            )
 
+        X_train = split_bundle.get("X_train")
+        y_train = split_bundle.get("y_train")
+
+        resolved_model_id = model_id or LATEST_STATE.get("model_id")
+        if not resolved_model_id or resolved_model_id not in MODEL_STORE:
+            raise HTTPException(
+                status_code=400,
+                detail="No model found. Call /select-data/ first or pass a valid model_id.",
+            )
+
+        target_model = MODEL_STORE[resolved_model_id]
+        trained = train_model(target_model, X_train, y_train)
+
+        MODEL_STORE[resolved_model_id] = trained
+        LATEST_STATE["model_id"] = resolved_model_id
+        LATEST_STATE["split_id"] = resolved_split_id
+
+        return {
+            "model_id": resolved_model_id,
+            "split_id": resolved_split_id,
+            "status": "trained",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Train error: {type(exc).__name__}: {exc}")
 
 @predict_router.post("/")
 async def predict(
-    model: Any = Body(None),
-    X_test: Any = Body(None),
+    model_id: Optional[str] = None,
+    split_id: Optional[str] = None,
 ):
-    predictions = predict_data(model, X_test)
-    return predictions.tolist() if hasattr(predictions, "tolist") else predictions
+    try:
+        resolved_split_id = (
+            split_id
+            or LATEST_STATE.get("split_id")
+        )
+        if not resolved_split_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No split dataset found. Pass split_id / split_temp_id or run /split-data/ first.",
+            )
 
+        split_bundle = _load_temp(resolved_split_id)
+        if not isinstance(split_bundle, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid split data in '{resolved_split_id}'.",
+            )
+
+        X_test = split_bundle.get("X_test")
+        if X_test is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"X_test not found in split '{resolved_split_id}'.",
+            )
+
+        resolved_model_id = model_id or LATEST_STATE.get("model_id")
+        if not resolved_model_id or resolved_model_id not in MODEL_STORE:
+            raise HTTPException(
+                status_code=400,
+                detail="No trained model found for prediction. Run /train-model/ first or pass a valid model_id.",
+            )
+
+        target_model = MODEL_STORE[resolved_model_id]
+        predictions = predict_data(target_model, X_test)
+        pred_list = predictions.tolist() if hasattr(predictions, "tolist") else predictions
+        predictions_id = _save_temp(pred_list)
+
+        LATEST_STATE["predictions_id"] = predictions_id
+        LATEST_STATE["model_id"] = resolved_model_id
+        LATEST_STATE["split_id"] = resolved_split_id
+
+        return {
+            "predictions_id": predictions_id,
+            "model_id": resolved_model_id,
+            "split_id": resolved_split_id,
+            "predictions": pred_list,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Predict error: {type(exc).__name__}: {exc}")
 
 @evaluate_router.post("/")
 async def evaluate(
-    type: Optional[str] = None,
-    X: Any = Body(None),
-    labels_pred: Any = Body(None),
-    y_test: Any = Body(None),
-    y_pred: Any = Body(None),
-    X_original: Any = Body(None),
-    X_embedded: Any = Body(None),
-    y: Any = Body(None),
-    n_neighbors: Optional[int] = None,
+    type: str = "regression",
+    split_id: Optional[str] = None,
+    split_temp_id: Optional[str] = None,
+    predictions_id: Optional[str] = None,
+    n_neighbors: int = 10,
 ):
-    return evaluate_model(
-        type,
-        X,
-        labels_pred,
-        y_test,
-        y_pred,
-        X_original,
-        X_embedded,
-        y,
-        n_neighbors,
-    )
+    try:
+        resolved_split_id = (
+            split_id
+            or split_temp_id
+            or LATEST_STATE.get("split_id")
+        )
+        split_bundle = _load_temp(resolved_split_id) if resolved_split_id else {}
+        if not isinstance(split_bundle, dict):
+            split_bundle = {}
+
+        X = split_bundle.get("X_test")
+        y_test = split_bundle.get("y_test")
+        y = split_bundle.get("y_test")
+        labels_pred = None
+        X_original = None
+        X_embedded = None
+
+        resolved_predictions_id = predictions_id or LATEST_STATE.get("predictions_id")
+        y_pred = _load_temp(resolved_predictions_id) if resolved_predictions_id else None
+
+        eval_type = type.value if hasattr(type, "value") else type
+        if y_pred is not None and eval_type == "clustering":
+            labels_pred = y_pred
+
+        return evaluate_model(
+            eval_type,
+            X,
+            labels_pred,
+            y_test,
+            y_pred,
+            X_original,
+            X_embedded,
+            y,
+            n_neighbors,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Evaluate error: {type(exc).__name__}: {exc}")
+
 
 
 class DataTypeEnum(str, Enum):
@@ -541,8 +769,6 @@ async def one_click(
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Pipeline error: {type(exc).__name__}: {exc}")
-
-
 
 if __name__ == "__main__":
     import uvicorn
