@@ -4,19 +4,38 @@ import os
 from enum import Enum
 from typing import Any, Optional
 
+print("[BOOT] 1. api/main.py started", flush=True)
+import gc
+import io
+import os
+from enum import Enum
+from typing import Any, Optional
+
 import pandas as pd
+print("[BOOT] 2. pandas imported", flush=True)
 from fastapi import APIRouter, Body, FastAPI, File, HTTPException, UploadFile
+print("[BOOT] 3. fastapi imported", flush=True)
 
 from process.data_loading.load_csv import *
+print("[BOOT] 4. load_csv imported", flush=True)
 from process.data_loading.load_tsv import *
+print("[BOOT] 5. load_tsv imported", flush=True)
 from process.data_loading.load_xlsx import *
+print("[BOOT] 6. load_xlsx imported", flush=True)
 from process.data_splitting.split_data2 import *
+print("[BOOT] 7. split_data2 imported", flush=True)
 from process.data_preprocessing.preprocess_data import *
+print("[BOOT] 8. preprocess_data imported", flush=True)
 from process.get_data.get_data2 import *
+print("[BOOT] 9. get_data2 imported", flush=True)
 from process.evaluation.evaluate import evaluate_model
+print("[BOOT] 10. evaluate imported", flush=True)
 from process.model_selection.select_model import select_model
+print("[BOOT] 11. select_model imported", flush=True)
 from process.prediction.predict_data import *
+print("[BOOT] 12. predict_data imported", flush=True)
 from process.training.train_model import train_model
+print("[BOOT] 13. train_model imported", flush=True)
 
 app = FastAPI(title="ML Implementation API", version="1.0")
 upload_router = APIRouter(prefix="/upload-data", tags=["Upload"])
