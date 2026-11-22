@@ -26,7 +26,7 @@ from process.get_data.get_data2 import *
 print("[BOOT] 9. get_data2 imported", flush=True)
 from process.evaluation.evaluate import evaluate_model
 print("[BOOT] 10. evaluate imported", flush=True)
-from process.model_selection.select_model import select_model
+from process.model_selection.select_model2 import select_model
 print("[BOOT] 11. select_model imported", flush=True)
 from process.prediction.predict_data import *
 print("[BOOT] 12. predict_data imported", flush=True)
