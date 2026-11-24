@@ -1,2 +1,1 @@
-- uvicorn api.main:app --reload --host 127.0.0.1 --port 10000
 - streamlit run frontend/app.py
